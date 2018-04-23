@@ -21,20 +21,19 @@ def clean_str(*strs, **kwargs):
 		return ret[0]
 	return ret
 
-def create_vars(to=0, start=0, step=1, type='BitVecs', size=64, prefix='x', g=globals()):
-	assert to > 0, 'num must be > 0'
-	assert start < to, 'start must be < num'
+def create_vars(num = 0, start = 0, step = 1, type = 'BitVecs', size = 64, prefix = 'x', g = globals()):
+	assert num > 0, 'num must be > 0'
 	g['bit_vecs'] = 0
-	type = clean_str(type.lower(), rules=['s$'])
+	type = clean_str(type.lower(), rules = ['s$'])
 	if type != 'int' and type != 'real':
 		type = 'BitVec'
 		g['bit_vecs'] = 1
 	else:
 		type = type.title()
-	if to - start > 1:
+	if num > 1:
 		type += 's'
 	p0, p1 = '', ''
-	for i in range(start, to, step):
+	for i in range(start, start+(num*step), step):
 		var_name = '%s%d' % (prefix, i)
 		p0 += 'g["%s"], ' % var_name
 		p1 += var_name + ' '
@@ -45,30 +44,36 @@ def create_vars(to=0, start=0, step=1, type='BitVecs', size=64, prefix='x', g=gl
 	else:
 		stri = '%s = %s( "%s" )' % (p0, type, p1)
 	exec stri
-	return [ eval(var) for var in clean_str(p0, rules=[',']).split(' ') ]
+	ret = [ eval(var) for var in clean_str(p0, rules = [',']).split(' ') ]
+	if len(ret) == 1:
+		return ret[0]
+	return ret
 
-def solver(g=globals()):
+def solver(g = globals()):
 	g['s'] = Solver()
 	return g['s']
 
-def add_eq(*args):
+def add_eq(*args, **kwargs):
+	if 'opt' in kwargs:
+		opt = kwargs['opt']
+	else:
+		opt = 2
 	for i in args:
-		i = simplify(i)
+		for j in range(opt):
+			i = simplify(i)
 		s.add(i)
 
-def set_ranges(to=0, start=0, step=1, rstart=32, rend=126, prefix='x', g=globals()):
-	assert to > 0, 'num must be > 0'
-	assert start < to, 'start must be < num'
-	for i in range(start, to, step):
+def set_ranges(num = 0, start = 0, step = 1, rstart = 32, rend = 126, prefix = 'x', g = globals()):
+	assert num > 0, 'num must be > 0'
+	for i in range(start, start+(num*step), step):
 		var_name = eval('g["%s%d"]' % (prefix, i))
 		if g['bit_vecs']:
 			add_eq(UGE(var_name, rstart), ULE(var_name, rend))
 		else:
-			add_eq(var_name >= rstart, var_name <= rend)
+			add_eq(var_name > = rstart, var_name < = rend)
 
-def set_known_bytes(known, to=0, start=0, step=1, type='flagFormat', prefix='x', g=globals()):
-	assert to > 0, 'num must be > 0'
-	assert start < to, 'start must be < num'
+def set_known_bytes(known, num = 0, start = 0, step = 1, type = 'flagFormat', prefix = 'x', g = globals()):
+	assert num > 0, 'num must be > 0'
 	type = type.lower()
 	if type == 'flagformat' or type == 'ff':
 		p0, p1 = known.split('*')
@@ -77,19 +82,18 @@ def set_known_bytes(known, to=0, start=0, step=1, type='flagFormat', prefix='x',
 			add_eq(var_name == ord(p0[i]))
 
 		assert p1 == '}', 'last flagFormat char must be "}"???'
-		var_name = eval('%s%d' % (prefix, to - 1))
+		var_name = eval('%s%d' % (prefix, num - 1))
 		add_eq(var_name == ord(p1))
 	elif type == 'start':
 		for i in range(start, len(known)):
 			var_name = eval('%s%d' % (prefix, i*step))
 			add_eq(var_name == ord(known[i]))
 
-def prepare_founded_values(to=0, start=0, step=1, prefix='x', g=globals()):
-	assert to > 0, 'num must be > 0'
-	assert start < to, 'start must be < num'
+def prepare_founded_values(num = 0, start = 0, step = 1, prefix = 'x', g = globals()):
+	assert num > 0, 'num must be > 0'
 	p0, p1 = '', ''
 	exec 'g["r"] = g["s"].model()'
-	for i in range(start, to, step):
+	for i in range(start, num, step):
 		var_name = '%s%d' % (prefix, i)
 		p0 += 'g["_%s"], ' % var_name
 		p1 += 'r[%s].as_long(), ' % var_name
@@ -97,26 +101,24 @@ def prepare_founded_values(to=0, start=0, step=1, prefix='x', g=globals()):
 	p0, p1 = clean_str(p0, p1)
 	stri = '%s = %s' % (p0, p1)
 	exec stri
-	return [ eval(var) for var in clean_str(p0, rules=[',']).split(' ') ]
+	return [ eval(var) for var in clean_str(p0, rules = [',']).split(' ') ]
 
-def iterate_all(to=0, start=0, step=1, prefix='x', g=globals()):
-	assert to > 0, 'num must be > 0'
-	assert start < to, 'start must be < num'
+def iterate_all(num = 0, start = 0, step = 1, prefix = 'x', g = globals()):
+	assert num > 0, 'num must be > 0'
 	stri = ''
-	for i in range(start, to, step):
+	for i in range(start, num, step):
 		var_name = '%s%d' % (prefix, i)
 		stri += '%s != _%s, ' % (var_name, var_name)
 
 	stri = 'add_eq( Or( %s ) )' % clean_str(stri)
 	exec stri
 
-def prepare_key(to=0, start=0, step=1, type='string', prefix='x', g=globals()):
-	assert to > 0, 'num must be > 0'
-	assert start < to, 'start must be < num'
+def prepare_key(num = 0, start = 0, step = 1, type = 'string', prefix = 'x', g = globals()):
+	assert num > 0, 'num must be > 0'
 	type = type.lower()
 	if type == 'string':
 		p0 = ''
-		for i in range(start, to, step):
+		for i in range(start, num, step):
 			var_name = '%s%d' % (prefix, i)
 			p0 += 'chr( g["_%s"] ) + ' % var_name
 
@@ -125,7 +127,7 @@ def prepare_key(to=0, start=0, step=1, type='string', prefix='x', g=globals()):
 		exec stri
 		return key
 
-def z3_pow(a, n, g=globals()):
+def z3_pow(a, n, g = globals()):
 	if n == 2:
 		return a * a
 	n = int(round(n))
