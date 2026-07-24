@@ -2,6 +2,8 @@ name: Remnant Drive Metadata Check
 on:
   push:
     branches: [remnant-drive-check-20260724]
+  pull_request:
+    branches: [master]
 permissions:
   contents: read
 jobs:
